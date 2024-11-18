@@ -1,5 +1,15 @@
 {
-    "weight_factor": 0.1,
-    "floor_contacts": false,
-    "parameter3": true
+    "device": "cpu",
+
+    "skeleton_model": "rtmo-t_8xb32-600e_body7-416x416",
+    "observation_size": 34,
+
+    "weight_factor": 1,
+    "floor_contacts": true,
+
+    "h_size":64,
+    "action_size": 2,
+    "batch_size":50,
+    "gamma": 0.99,
+    "lr": 1e-4
 }

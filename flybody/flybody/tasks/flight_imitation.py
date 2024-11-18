@@ -14,6 +14,8 @@ from flybody.tasks.task_utils import (com2root, root2com, add_trajectory_sites,
 from flybody.tasks.constants import _TERMINAL_HEIGHT
 from flybody.tasks.base import Flying
 
+from config import CONFIG
+
 class FlightImitation(Flying):
     """Class for task of fly walking and tracking reference."""
 
@@ -28,7 +30,7 @@ class FlightImitation(Flying):
             **kwargs: Arguments passed to the superclass constructor.
         """
 
-        super().__init__(add_ghost=False, num_user_actions=1, floor_contacts=False, **kwargs)
+        super().__init__(add_ghost=False, num_user_actions=1, floor_contacts=CONFIG['floor_contacts'], **kwargs)
 
         self._inference_mode = inference_mode
         self._max_episode_steps = round(
@@ -63,6 +65,8 @@ class FlightImitation(Flying):
         # self._walker.observables.add_observable('ref_root_quat',
         #                                         self.ref_root_quat)
 
+        self._last_com_height = 0
+
     def initialize_episode_mjcf(self, random_state: np.random.RandomState):
         super().initialize_episode_mjcf(random_state)
 
@@ -93,6 +97,12 @@ class FlightImitation(Flying):
         """Randomly selects a starting point and set the walker."""
         super().initialize_episode(physics, random_state)
 
+        body_mass = physics.named.model.body_subtreemass['walker/thorax'] # gram
+        self._weight = np.linalg.norm(physics.model.opt.gravity) * body_mass
+        self._weight = self._weight * CONFIG['weight_factor']
+
+        self._last_com_height = self._walker.observables.thorax_height(physics)
+
         # Set full initial qpos
         # physics.bind(self._mocap_joints).qpos = self._ref_qpos[0, :]
 
@@ -114,6 +124,8 @@ class FlightImitation(Flying):
             return (1,)
         # Use the height of the center of mass as the reward factor
         com_height = self._walker.observables.thorax_height(physics)
+        reward_step = com_height - self._last_com_height
+        self._last_com_height = com_height
         # print(self._walker.observables)
         # height_score = rewards.tolerance(com_height,
         #                                  bounds=(0, _TERMINAL_HEIGHT),
@@ -132,7 +144,7 @@ class FlightImitation(Flying):
         #                                 value_at_margin=0.0)
         
         # return np.hstack((com_height, roll_score))
-        return com_height
+        return reward_step
 
     def check_termination(self, physics: 'mjcf.Physics') -> bool:
         """Check various termination conditions."""

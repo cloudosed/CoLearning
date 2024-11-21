@@ -150,7 +150,7 @@ class FlightImitation(Flying):
         """Check various termination conditions."""
         height = self._walker.observables.thorax_height(physics)
 
-        return (height > _TERMINAL_HEIGHT or height < 0.08
+        return (height > _TERMINAL_HEIGHT or height < CONFIG['terminal_height']
                 or super().check_termination(physics))
 
     def get_discount(self, physics: 'mjcf.Physics'):

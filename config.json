@@ -4,8 +4,9 @@
     "skeleton_model": "rtmo-t_8xb32-600e_body7-416x416",
     "observation_size": 34,
 
-    "weight_factor": 1,
-    "floor_contacts": true,
+    "weight_factor": 0.001,
+    "floor_contacts": false,
+    "terminal_height": -10,
 
     "h_size":64,
     "action_size": 2,

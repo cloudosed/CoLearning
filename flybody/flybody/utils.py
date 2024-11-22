@@ -29,6 +29,7 @@ def rollout_and_render(env, policy, n_steps=100,
                 env.physics.render(camera_id=camera_id, **render_kwargs))
         frame = frame[0] if len(camera_ids) == 1 else frame  # Maybe squeeze.
         frames.append(frame)
+        # print("Observation shape:", {k: v.shape for k, v in timestep.observation.items()})
         action = policy(timestep.observation)
         timestep = env.step(action)
     return frames

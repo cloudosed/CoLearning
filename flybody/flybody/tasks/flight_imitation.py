@@ -11,10 +11,11 @@ from flybody.tasks.trajectory_loaders import HDF5FlightTrajectoryLoader
 from flybody.quaternions import quat_dist_short_arc
 from flybody.tasks.task_utils import (com2root, root2com, add_trajectory_sites,
                                       update_trajectory_sites)
-from flybody.tasks.constants import _TERMINAL_HEIGHT
+# from flybody.tasks.constants import _TERMINAL_HEIGHT
 from flybody.tasks.base import Flying
 
 from config import CONFIG
+_TERMINAL_HEIGHT = CONFIG['terminal_height']
 
 class FlightImitation(Flying):
     """Class for task of fly walking and tracking reference."""
@@ -347,6 +348,7 @@ class FlightImitationWBPG(Flying):
             self.observables['walker/ref_displacement'](physics)[0])
         current_step = np.round(physics.time() / self.control_timestep)
         self._reached_traj_end = current_step == self._traj_timesteps
+        # print(height < _TERMINAL_HEIGHT, com_dist > self._terminal_com_dist, self._reached_traj_end, super().check_termination(physics))
         return (height < _TERMINAL_HEIGHT or com_dist > self._terminal_com_dist
                 or self._reached_traj_end
                 or super().check_termination(physics))

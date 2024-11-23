@@ -1,8 +1,10 @@
 {
-    "device": "cpu",
+    "device": "cuda",
 
     "skeleton_model": "rtmo-t_8xb32-600e_body7-416x416",
-    "observation_size": 34,
+    "inference_data": "temp_test.mp4",
+
+    "observation_size": 18,
 
     "weight_factor": 1,
     "floor_contacts": false,
@@ -12,5 +14,6 @@
     "action_size": 2,
     "batch_size":50,
     "gamma": 0.99,
-    "lr": 1e-4
+    "lr": 1e-4,
+    "weight_decay": 1e-4
 }

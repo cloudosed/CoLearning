@@ -192,6 +192,25 @@ class WingBeatPatternGenerator():
             self._freq_idx = idx_new
 
         return self._traj[self._step, :]
+    
+    def step_control(self, ctrl_index: float) -> np.ndarray:
+        """Step and return the next set of wing angles based on the given index.
+
+        Args:
+        index: A float value to determine the step, should be in the range [0, 1].
+
+        Returns:
+        Next set of wing kinematic angles, shape (n_wing_angles,).
+        """
+        # 将 index 映射到 0 到 1 的范围
+        ctrl_index = max(0, min(1, ctrl_index))
+        
+        # 计算新的 step
+        self._step = int(ctrl_index * len(self._traj))
+        # 确保 self._step 不会越界
+        self._step = min(self._step, len(self._traj) - 1)
+
+        return self._traj[self._step, :]
 
     def get_last_angles(self):
         """Re-return the last wing angles, could be used for debugging."""

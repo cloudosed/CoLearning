@@ -108,8 +108,8 @@ if __name__ == '__main__':
     env = flight_imitation(wpg_pattern_path,
                        ref_flight_path,
                        terminal_com_dist=float('inf'))
-    # env = wrappers.SinglePrecisionWrapper(env)
-    # env = wrappers.CanonicalSpecWrapper(env, clip=True)
+    env = wrappers.SinglePrecisionWrapper(env)
+    env = wrappers.CanonicalSpecWrapper(env, clip=True)
 
     _ = env.reset()
     pixels = env.physics.render(camera_id=1, **render_kwargs)

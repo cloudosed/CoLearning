@@ -14,13 +14,15 @@ class Policy(nn.Module):
     def __init__(self, s_size, h_size, a_size):
         super(Policy, self).__init__()
         self.fc1 = nn.Linear(s_size, h_size)
-        self.fc2 = nn.Linear(h_size, h_size)
+        self.norm = nn.LayerNorm(h_size)
+        # self.fc2 = nn.Linear(h_size, h_size)
         self.fc_mean = nn.Linear(h_size, a_size)
         self.fc_log_std = nn.Linear(h_size, a_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.norm(x)
+        # x = F.relu(self.fc2(x))
         mean = self.fc_mean(x)
         log_std = self.fc_log_std(x)
         log_std = torch.clamp(log_std, min=-10, max=10)  # 对log_std进行裁剪
@@ -30,7 +32,7 @@ class Policy(nn.Module):
     def act(self, state):
         mean, std = self.forward(state)
         
-        dist = torch.distributions.Normal(mean, std)
+        dist = torch.distributions.multivariate_normal.MultivariateNormal(mean, scale_tril=torch.tril(torch.diag_embed(std)))
         action = dist.sample()
         log_prob = dist.log_prob(action).sum(dim=-1)
         return action, log_prob

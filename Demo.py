@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-import time
 
 import matplotlib.pyplot as plt
 
@@ -20,15 +19,15 @@ import torch.optim as optim
 from config import CONFIG
 
 # flybody
-
 import os
 import sys
 module_path = os.path.abspath(os.path.join('./flybody')) # or the path to your source code
 sys.path.insert(0, module_path)
 
-from flybody.fly_envs import walk_on_ball, flight_imitation_easy
+from flybody.fly_envs import flight_imitation_control
 from flybody.utils import display_video
 from flybody.tasks.task_utils import retract_wings
+from flybody.agents.utils_tf import TestPolicyWrapper
 
 
 # skeleton
@@ -37,7 +36,21 @@ from skeleton import get_skeleton_data
 # RL
 from RL import Policy, RL
 
+# tf for flight_policy
+import tensorflow as tf
+import tensorflow_probability as tfp
+from acme import wrappers
 
+# Baseline pattern for wingbeat pattern generator.
+wpg_pattern_path = r'asset\datasets_flight-and-walking-imitation-data\wing_pattern_fmech.npy'
+# Flight and walking reference data.
+ref_flight_path = r'asset\datasets_flight-and-walking-imitation-data\flight-dataset_saccade-evasion_augmented.hdf5'
+ref_walking_path = r'asset\datasets_flight-and-walking-imitation-data\walking-dataset_female-only_snippets-16252_trk-files-0-9.hdf5'
+
+flight_policy_path = r'asset\trained-fly-policies\flight'
+walk_policy_path = r'asset\trained-fly-policies\walking'
+vision_bumps_path = r'asset\trained-fly-policies\vision-bumps'
+vision_trench_path = r'asset\trained-fly-policies\vision-trench'
 
 ##### code part
 
@@ -45,57 +58,64 @@ from RL import Policy, RL
 
 def create_env():
     # Create RL environment.
-    env = flight_imitation_easy()
+    env = flight_imitation_control(wpg_pattern_path,
+                       ref_flight_path,
+                       terminal_com_dist=float('inf'))
+    env = wrappers.SinglePrecisionWrapper(env)
+    env = wrappers.CanonicalSpecWrapper(env, clip=True)
     timestep = env.reset()
     return env, timestep
 
 def physics_process(shared_queue, lock):
     # Physics process
     env, timestep = create_env()
-    action_size = env.action_spec().shape[0]
-    observation_size = CONFIG['observation_size']
+    root_joint = mjcf.get_frame_freejoint(env._task._walker.mjcf_model)
+    init_quaternion_j = [-0.97181529,  0.0168443,   0.22505891, -0.06811601]
 
     # nn
-    policy = Policy(observation_size, CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
+    policy = Policy(CONFIG['observation_size'], CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
 
     # optimizer
-    optimizer = optim.Adam(policy.parameters(), lr=CONFIG['lr'])
+    optimizer = optim.Adam(policy.parameters(), lr=CONFIG['lr'], weight_decay=CONFIG['weight_decay'])
 
     rl = RL(env, policy, optimizer)
 
+    render_image = env.physics.render(camera_id=1, width=640, height=480)
+
+    flight_policy = tf.saved_model.load(flight_policy_path)
+    flight_policy = TestPolicyWrapper(flight_policy)
+
+    
     
     while True:
 
         lock.acquire()
         try:
             if shared_queue.full():
-                result = shared_queue.get()
+                
+                obs = shared_queue.get()
                 # print(result['predictions'][0][0]['keypoints'])
 
                 # action = np.random.uniform(-0.3, 0.3, size=action_size)
-                keypoints = result['predictions'][0][0]['keypoints']
-                obs = np.array(keypoints).flatten()
 
                 obs = torch.tensor(obs, dtype=torch.float32).to(CONFIG['device'])
                 action, log_prob = policy.act(obs)
                 action = action.cpu().detach().numpy()
 
                 # modify action
-                zero_action = np.zeros(action_size)
-                zero_action[7] = action[0]
-                zero_action[4] = action[1]
+                base_action = flight_policy(timestep.observation)
+                # base_action: 12 ; action: 2 ; action: 12 -1 + 2 = 13
+                action = np.concatenate((base_action[:-1], action))
 
-                timestep = env.step(zero_action)
+                timestep = env.step(action)
+                # fix rotation
+                env.physics.bind(root_joint).qpos[3:] = init_quaternion_j
 
                 reward = timestep.reward
                 rl.get_one_data(log_prob, reward)
 
-                vis_image = cv2.cvtColor(result['visualization'][0], cv2.COLOR_RGB2BGR)
-                vis_image = cv2.resize(vis_image, (416, 416))
-
-                render_image = env.physics.render(camera_id=1, width=416, height=416)
-                display_image = cv2.hconcat([vis_image, render_image])
-                cv2.imshow('display_image', display_image)
+                render_image = env.physics.render(camera_id=1, width=640, height=480)
+                cv2.imshow('render_image', render_image)
                 cv2.waitKey(1)
 
         finally:

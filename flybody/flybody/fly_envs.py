@@ -10,7 +10,7 @@ from dm_control.locomotion.arenas import floors
 
 from flybody.fruitfly import fruitfly
 
-from flybody.tasks.flight_imitation import FlightImitationWBPG, FlightImitation
+from flybody.tasks.flight_imitation import FlightImitationWBPG, FlightImitation, FlightImitationWBPG_Control
 from flybody.tasks.walk_imitation import WalkImitation
 from flybody.tasks.walk_on_ball import WalkOnBall
 from flybody.tasks.vision_flight import VisionFlightImitationWBPG
@@ -25,6 +25,7 @@ from flybody.tasks.trajectory_loaders import (
     InferenceWalkingTrajectoryLoader,
 )
 
+# deprecated
 def flight_imitation_easy(random_state: np.random.RandomState | None = None):
     
     walker = fruitfly.FruitFly
@@ -45,6 +46,45 @@ def flight_imitation_easy(random_state: np.random.RandomState | None = None):
                                 random_state=random_state,
                                 strip_singleton_obs_buffer_dim=True)
 
+def flight_imitation_control(wpg_pattern_path: str,
+                     ref_path: str,
+                     random_state: np.random.RandomState | None = None,
+                     terminal_com_dist: float = 2.0):
+    """Requires a fruitfly to track a flying reference.
+  
+    Args:
+        wpg_pattern_path: Path to baseline wing beat pattern for WPG.
+        ref_path: Path to reference trajectory dataset.
+        random_state: Random state for reproducibility.
+        terminal_com_dist: Episode will be terminated when distance from model
+            CoM to ghost CoM exceeds terminal_com_dist. Can be float('inf').
+
+    Returns:
+        Environment for flight tracking task.
+    """
+    # Build a fruitfly walker and arena.
+    walker = fruitfly.FruitFly
+    arena = floors.Floor()
+    # Initialize wing pattern generator and flight trajectory loader.
+    wbpg = WingBeatPatternGenerator(base_pattern_path=wpg_pattern_path)
+    traj_generator = HDF5FlightTrajectoryLoader(path=ref_path,
+                                                random_state=random_state)
+    # Build the task.
+    time_limit = 0.6
+    task = FlightImitationWBPG_Control(walker=walker,
+                               arena=arena,
+                               wbpg=wbpg,
+                               traj_generator=traj_generator,
+                               terminal_com_dist=terminal_com_dist,
+                               initialize_qvel=True,
+                               time_limit=time_limit,
+                               joint_filter=0.,
+                               future_steps=5)
+
+    return composer.Environment(time_limit=time_limit,
+                                task=task,
+                                random_state=random_state,
+                                strip_singleton_obs_buffer_dim=True)
 
 def flight_imitation(wpg_pattern_path: str,
                      ref_path: str,

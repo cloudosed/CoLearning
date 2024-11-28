@@ -290,7 +290,9 @@ class FlightImitationWBPG_Control(Flying):
         physics.bind(self._wing_joints).qpos = init_wing_qpos
         # Initialize wing qvel.
         physics.bind(self._wing_joints).qvel = init_wing_qvel
-        self._last_com_height = self._walker.observables.thorax_height(physics)
+
+        self.binded_root = physics.bind(self.root_joint)
+        self._last_vol_z = self.binded_root.qvel[2]
 
         # if self._initialize_qvel:
         #     # Only initialize linear CoM velocity, not rotational velocity.
@@ -329,23 +331,23 @@ class FlightImitationWBPG_Control(Flying):
 
     def after_step(self, physics, random_state):
         super().after_step(physics, random_state)
-        physics.bind(self.root_joint).qpos[3:] = self._ref_qpos[0, 3:]
-        physics.bind(self.root_joint).qpos[0:2] = 0
-        physics.bind(self.root_joint).qvel[0:2] = 0
-        physics.bind(self.root_joint).qvel[3:] = 0
-        if physics.bind(self.root_joint).qpos[2] < .5:
-            physics.bind(self.root_joint).qpos[2] = .5
-            physics.bind(self.root_joint).qvel[2] = 0
+        self.binded_root.qpos[3:] = self._ref_qpos[0, 3:]
+        self.binded_root.qpos[0:2] = 0
+        self.binded_root.qvel[0:2] = 0
+        self.binded_root.qvel[3:] = 0
+        if self.binded_root.qpos[2] < .5:
+            self.binded_root.qpos[2] = .5
+            self.binded_root.qvel[2] = 0
 
     def get_reward_factors(self, physics):
         """Returns factorized reward terms."""
 
         # if self._inference_mode:
         #     return (1,)
-        # Use the height of the center of mass as the reward factor
-        com_height = self._walker.observables.thorax_height(physics)
-        reward_step = com_height - self._last_com_height
-        self._last_com_height = com_height
+        # Use the height of the center of mass as the reward factor    
+        com_vol = self.binded_root.qvel[2]
+        reward_step = com_vol - self._last_vol_z
+        self._last_vol_z = com_vol
         return reward_step
 
     def check_termination(self, physics: 'mjcf.Physics') -> bool:

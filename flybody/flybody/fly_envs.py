@@ -58,17 +58,15 @@ class ColearnTrajectory(HDF5FlightTrajectoryLoader):
         dist = 5
         seg = self._com_qvel[0].shape[0]
         z = .5
-        angle = -15
-        angle = math.radians(angle)
+        angle = -90
         traj = []
         vel = []
         quat = get_quat(angle, [0, 1, 0])
         for _ in range(seg):
             z += dist / seg
-            traj.append([z * math.cos(-angle), 0, z * math.sin(-angle) + .5] + list(quat))
-            vel.append([10, 0, 10, 0, 0, 0])
+            traj.append([0, 0, z + .5] + list(quat))
+            vel.append([0, 0, 10, 0, 0, 0])
             
-
         self._com_qpos[0] = np.array(traj)
         self._com_qvel[0] = np.array(vel)
         self._n_traj = 1

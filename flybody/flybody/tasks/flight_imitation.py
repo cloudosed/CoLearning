@@ -325,7 +325,10 @@ class FlightImitationWBPG_Control(Flying):
         # self._ghost.set_pose(physics, ghost_qpos[:3], ghost_qpos[3:])
         # self._ghost.set_velocity(physics, self._ref_qvel[step, :3],
         #                          self._ref_qvel[step, 3:])
+        super().before_step(physics, action, random_state)
 
+    def after_step(self, physics, random_state):
+        super().after_step(physics, random_state)
         physics.bind(self.root_joint).qpos[3:] = self._ref_qpos[0, 3:]
         physics.bind(self.root_joint).qpos[0:2] = 0
         physics.bind(self.root_joint).qvel[0:2] = 0
@@ -333,8 +336,6 @@ class FlightImitationWBPG_Control(Flying):
         if physics.bind(self.root_joint).qpos[2] < .5:
             physics.bind(self.root_joint).qpos[2] = .5
             physics.bind(self.root_joint).qvel[2] = 0
-
-        super().before_step(physics, action, random_state)
 
     def get_reward_factors(self, physics):
         """Returns factorized reward terms."""

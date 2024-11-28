@@ -71,8 +71,6 @@ def create_env():
 def physics_process(shared_queue, lock):
     # Physics process
     env, timestep = create_env()
-    root_joint = mjcf.get_frame_freejoint(env._task._walker.mjcf_model)
-    init_quaternion_j = [-0.97181529,  0.0168443,   0.22505891, -0.06811601]
 
     # nn
     policy = Policy(CONFIG['observation_size'], CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
@@ -103,8 +101,6 @@ def physics_process(shared_queue, lock):
                 action[0:2] = _action
 
                 timestep = env.step(action)
-                # fix rotation
-                env.physics.bind(root_joint).qpos[3:] = init_quaternion_j
 
                 reward = timestep.reward
                 rl.get_one_data(log_prob, reward)

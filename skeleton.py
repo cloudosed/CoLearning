@@ -16,7 +16,8 @@ def get_skeleton_data(shared_queue, lock, fps = 30, use_delta = False):
         # 使用模型别名创建推理器
     inferencer = MMPoseInferencer(CONFIG['skeleton_model'], device=CONFIG['device'])
     # result_generator = inferencer('webcam', show=True, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
-    result_generator = inferencer(CONFIG['inference_data'], show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
+    # result_generator = inferencer(CONFIG['inference_data'], show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
+    result_generator = inferencer('webcam', show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
 
     interval = 1 / fps
 

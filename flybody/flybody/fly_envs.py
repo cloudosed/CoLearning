@@ -25,6 +25,9 @@ from flybody.tasks.trajectory_loaders import (
     InferenceWalkingTrajectoryLoader,
 )
 
+import math
+from flybody.quaternions import *
+
 # deprecated
 def flight_imitation_easy(random_state: np.random.RandomState | None = None):
     
@@ -45,6 +48,31 @@ def flight_imitation_easy(random_state: np.random.RandomState | None = None):
                                 task=task,
                                 random_state=random_state,
                                 strip_singleton_obs_buffer_dim=True)
+
+class ColearnTrajectory(HDF5FlightTrajectoryLoader):
+    def __init__(self, path, traj_indices = None, random_state = None):
+        super().__init__(path, traj_indices, random_state)
+
+        self._com_qpos = self._com_qpos[0:1]
+        self._com_qvel = self._com_qvel[0:1]
+        dist = 5
+        seg = self._com_qvel[0].shape[0]
+        z = .5
+        angle = -15
+        angle = math.radians(angle)
+        traj = []
+        vel = []
+        quat = get_quat(angle, [0, 1, 0])
+        for _ in range(seg):
+            z += dist / seg
+            traj.append([z * math.cos(-angle), 0, z * math.sin(-angle) + .5] + list(quat))
+            vel.append([10, 0, 10, 0, 0, 0])
+            
+
+        self._com_qpos[0] = np.array(traj)
+        self._com_qvel[0] = np.array(vel)
+        self._n_traj = 1
+        self._traj_indices = np.arange(self._n_traj)
 
 def flight_imitation_control(wpg_pattern_path: str,
                      ref_path: str,
@@ -67,7 +95,7 @@ def flight_imitation_control(wpg_pattern_path: str,
     arena = floors.Floor()
     # Initialize wing pattern generator and flight trajectory loader.
     wbpg = WingBeatPatternGenerator(base_pattern_path=wpg_pattern_path)
-    traj_generator = HDF5FlightTrajectoryLoader(path=ref_path,
+    traj_generator = ColearnTrajectory(path=ref_path,
                                                 random_state=random_state)
     # Build the task.
     time_limit = 0.6
@@ -76,7 +104,7 @@ def flight_imitation_control(wpg_pattern_path: str,
                                wbpg=wbpg,
                                traj_generator=traj_generator,
                                terminal_com_dist=terminal_com_dist,
-                               initialize_qvel=True,
+                               initialize_qvel=False,
                                time_limit=time_limit,
                                joint_filter=0.,
                                future_steps=5)

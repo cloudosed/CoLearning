@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore",category=DeprecationWarning)
 import numpy as np
 import cv2
 
@@ -81,12 +83,7 @@ def physics_process(shared_queue, lock):
     rl = RL(env, policy, optimizer)
 
     render_image = env.physics.render(camera_id=1, width=640, height=480)
-
-    flight_policy = tf.saved_model.load(flight_policy_path)
-    flight_policy = TestPolicyWrapper(flight_policy)
-
-    
-    
+ 
     while True:
 
         lock.acquire()
@@ -100,12 +97,10 @@ def physics_process(shared_queue, lock):
 
                 obs = torch.tensor(obs, dtype=torch.float32).to(CONFIG['device'])
                 action, log_prob = policy.act(obs)
-                action = action.cpu().detach().numpy()
+                _action = action.cpu().detach().numpy()
 
-                # modify action
-                base_action = flight_policy(timestep.observation)
-                # base_action: 12 ; action: 2 ; action: 12 -1 + 2 = 13
-                action = np.concatenate((base_action[:-1], action))
+                action = np.zeros(11, np.float32)
+                action[0:2] = _action
 
                 timestep = env.step(action)
                 # fix rotation
@@ -115,13 +110,12 @@ def physics_process(shared_queue, lock):
                 rl.get_one_data(log_prob, reward)
 
                 render_image = env.physics.render(camera_id=1, width=640, height=480)
+                render_image=cv2.cvtColor(render_image, cv2.COLOR_RGB2BGR)
                 cv2.imshow('render_image', render_image)
                 cv2.waitKey(1)
 
         finally:
             lock.release()
-
-
 
 import warnings
 warnings.filterwarnings("ignore")

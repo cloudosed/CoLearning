@@ -16,6 +16,7 @@ from flybody.tasks.base import Flying
 
 from config import CONFIG
 _TERMINAL_HEIGHT = CONFIG['terminal_height']
+from dm_control import mjcf
 
 # deprecated
 class FlightImitation(Flying):
@@ -187,7 +188,7 @@ class FlightImitationWBPG_Control(Flying):
             **kwargs: Arguments passed to the superclass constructor.
         """
 
-        super().__init__(add_ghost=True, num_user_actions=2, **kwargs)
+        super().__init__(add_ghost=False, **kwargs)
 
         self._wbpg = wbpg
         self._traj_generator = traj_generator
@@ -212,7 +213,7 @@ class FlightImitationWBPG_Control(Flying):
         # Get wing joint indices into agent's action vector.
         self._wing_inds_action = self._walker._action_indices['wings']
         # Get 'user' index into agent's action vector (only one user action).
-        self._user_idx_action = self._walker._action_indices['user'][0]
+        # self._user_idx_action = self._walker._action_indices['user'][0]
 
         # Maybe add trajectory sites, one every 10 steps.
         if self._trajectory_sites:
@@ -225,6 +226,8 @@ class FlightImitationWBPG_Control(Flying):
                                                 self.ref_displacement)
         self._walker.observables.add_observable('ref_root_quat',
                                                 self.ref_root_quat)
+        
+        self.root_joint = mjcf.get_frame_freejoint(self._walker.mjcf_model)
 
     def set_next_trajectory_index(self, idx):
         """In the next episode (only), this requested trajectory will be used.
@@ -242,10 +245,10 @@ class FlightImitationWBPG_Control(Flying):
 
         # Transform _ghost_qpos trajectory (which is really CoM trajectory from
         # data) to the corresponding actual qpos of ghost root joint.
-        ghost_root_pos = com2root(self._ref_qpos[:, :3], self._ref_qpos[:, 3:])
-        ghost_root_quat = self._ref_qpos[:, 3:7]
-        self._ref_qpos = np.concatenate((ghost_root_pos, ghost_root_quat),
-                                        axis=1)
+        # ghost_root_pos = com2root(self._ref_qpos[:, :3], self._ref_qpos[:, 3:])
+        # ghost_root_quat = self._ref_qpos[:, 3:7]
+        # self._ref_qpos = np.concatenate((ghost_root_pos, ghost_root_quat),
+        #                                 axis=1)
 
         # Set trajectory time limits for early 'good' termination.
         self._traj_timesteps = min(
@@ -255,9 +258,9 @@ class FlightImitationWBPG_Control(Flying):
         self._reached_traj_end = False
 
         # Update positions of trajectory sites.
-        if self._trajectory_sites:
-            update_trajectory_sites(self.root_entity, self._ref_qpos,
-                                    self._n_traj_sites, self._traj_timesteps)
+        # if self._trajectory_sites:
+        #     update_trajectory_sites(self.root_entity, self._ref_qpos,
+        #                             self._n_traj_sites, self._traj_timesteps)
         # Update axis crosshair position.
         z = self._ref_qpos[0, 2]
         self._crosshair_sites[0].fromto[[2, 5]] = [0, z + 0.5]
@@ -273,9 +276,9 @@ class FlightImitationWBPG_Control(Flying):
         """
         super().initialize_episode(physics, random_state)
 
-        ghost_qpos = self._ref_qpos[0, :] + np.hstack(
-            (self._ghost_offset, 4 * [0]))
-        self._ghost.set_pose(physics, ghost_qpos[:3], ghost_qpos[3:])
+        # ghost_qpos = self._ref_qpos[0, :] + np.hstack(
+        #     (self._ghost_offset, 4 * [0]))
+        # self._ghost.set_pose(physics, ghost_qpos[:3], ghost_qpos[3:])
 
         # Reset wing pattern generator and get initial wing qpos.
         init_wing_qpos, init_wing_qvel = self._wbpg.reset(
@@ -287,63 +290,62 @@ class FlightImitationWBPG_Control(Flying):
         physics.bind(self._wing_joints).qpos = init_wing_qpos
         # Initialize wing qvel.
         physics.bind(self._wing_joints).qvel = init_wing_qvel
+        self._last_com_height = self._walker.observables.thorax_height(physics)
 
-        if self._initialize_qvel:
-            # Only initialize linear CoM velocity, not rotational velocity.
-            self._walker.set_velocity(physics, self._ref_qvel[0, :3])
+        # if self._initialize_qvel:
+        #     # Only initialize linear CoM velocity, not rotational velocity.
+        #     self._walker.set_velocity(physics, self._ref_qvel[0, :3])
 
     def before_step(self, physics: 'mjcf.Physics', action,
                     random_state: np.random.RandomState):
         """Combine action with controled WPG base pattern. Update ghost pos and vel."""
         # Get target wing joint angles at beat frequency requested by the agent.
 
-        left_act = action[-2]
-        right_act = action[-1]
+        left_act = action[0]
+        right_act = action[1]
 
         left_ctrl = self._wbpg.step_control(
             ctrl_index=left_act)  # Returns position control.
         right_ctrl = self._wbpg.step_control(
             ctrl_index=right_act)
 
+        action = np.zeros(11, np.float32)
         length = physics.bind(self._wing_joints).qpos
         # Convert position control to force control.
-        action[3:6] += (left_ctrl - length)[:3]
-        action[6:9] += (right_ctrl - length)[3:]
+        yaw = -1
+        roll = 0.033
+        pitch = -0.15
+        action[3:6] = np.array([yaw, roll, pitch]) + (left_ctrl - length)[:3]
+        action[6:9] = np.array([yaw, roll, pitch]) + (right_ctrl - length)[3:]
 
         # Update ghost joint pos and vel.
-        step = int(np.round(physics.data.time / self.control_timestep))
-        ghost_qpos = self._ref_qpos[step, :] + np.hstack(
-            (self._ghost_offset, 4 * [0]))
-        self._ghost.set_pose(physics, ghost_qpos[:3], ghost_qpos[3:])
-        self._ghost.set_velocity(physics, self._ref_qvel[step, :3],
-                                 self._ref_qvel[step, 3:])
+        # step = int(np.round(physics.data.time / self.control_timestep))
+        # ghost_qpos = self._ref_qpos[step, :] + np.hstack(
+        #     (self._ghost_offset, 4 * [0]))
+        # self._ghost.set_pose(physics, ghost_qpos[:3], ghost_qpos[3:])
+        # self._ghost.set_velocity(physics, self._ref_qvel[step, :3],
+        #                          self._ref_qvel[step, 3:])
+
+        physics.bind(self.root_joint).qpos[3:] = self._ref_qpos[0, 3:]
+        physics.bind(self.root_joint).qpos[0:2] = 0
+        physics.bind(self.root_joint).qvel[0:2] = 0
+        physics.bind(self.root_joint).qvel[3:] = 0
+        if physics.bind(self.root_joint).qpos[2] < .5:
+            physics.bind(self.root_joint).qpos[2] = .5
+            physics.bind(self.root_joint).qvel[2] = 0
 
         super().before_step(physics, action, random_state)
 
     def get_reward_factors(self, physics):
         """Returns factorized reward terms."""
 
-        # Reference CoM displacement reward.
-        ghost_xpos, ghost_quat = self._ghost.get_pose(physics)
-        ghost_com = root2com(np.concatenate((ghost_xpos, ghost_quat)))
-        model_com = physics.named.data.subtree_com['walker/']
-        displacement = np.linalg.norm(ghost_com - model_com)
-        displacement = rewards.tolerance(displacement,
-                                         bounds=(0, 0),
-                                         sigmoid='linear',
-                                         margin=0.4,
-                                         value_at_margin=0.0)
-
-        # Reference root quaternion displacement reward.
-        quat = self.observables['walker/ref_root_quat'](physics)[0]
-        quat_dist = quat_dist_short_arc(np.array([1., 0, 0, 0]), quat)
-        quat_dist = rewards.tolerance(quat_dist,
-                                      bounds=(0, 0),
-                                      sigmoid='linear',
-                                      margin=np.pi,
-                                      value_at_margin=0.0)
-
-        return np.hstack((displacement, quat_dist))
+        # if self._inference_mode:
+        #     return (1,)
+        # Use the height of the center of mass as the reward factor
+        com_height = self._walker.observables.thorax_height(physics)
+        reward_step = com_height - self._last_com_height
+        self._last_com_height = com_height
+        return reward_step
 
     def check_termination(self, physics: 'mjcf.Physics') -> bool:
         """Check various termination conditions."""

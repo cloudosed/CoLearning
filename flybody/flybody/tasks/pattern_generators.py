@@ -197,13 +197,15 @@ class WingBeatPatternGenerator():
         """Step and return the next set of wing angles based on the given index.
 
         Args:
-        index: A float value to determine the step, should be in the range [0, 1].
+        ctrl_index: A float value to determine the step, should be in the range [0, 1].
 
         Returns:
         Next set of wing kinematic angles, shape (n_wing_angles,).
         """
-        # 将 index 映射到 0 到 1 的范围
-        ctrl_index = max(0, min(1, ctrl_index))
+
+        self._traj = self.traj_ctrl[200]['traj']
+        self._cycle_len = self._traj.shape[0]
+        self._freq_idx = 200
         
         # 计算新的 step
         self._step = int(ctrl_index * len(self._traj))

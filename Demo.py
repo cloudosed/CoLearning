@@ -26,7 +26,7 @@ import sys
 module_path = os.path.abspath(os.path.join('./flybody')) # or the path to your source code
 sys.path.insert(0, module_path)
 
-from flybody.fly_envs import flight_imitation_control
+from flybody.fly_envs import flight_imitation_control, flight_imitation
 from flybody.utils import display_video
 from flybody.tasks.task_utils import retract_wings
 from flybody.agents.utils_tf import TestPolicyWrapper
@@ -36,7 +36,8 @@ from flybody.agents.utils_tf import TestPolicyWrapper
 from skeleton import get_skeleton_data
 
 # RL
-from RL import Policy, RL
+from RL import Policy, RL, DQN_Policy
+from actionTable import ActionTable
 
 # tf for flight_policy
 import tensorflow as tf
@@ -63,22 +64,26 @@ def create_env():
     env = flight_imitation_control(wpg_pattern_path,
                        ref_flight_path,
                        terminal_com_dist=float('inf'))
+
     env = wrappers.SinglePrecisionWrapper(env)
     env = wrappers.CanonicalSpecWrapper(env, clip=True)
     timestep = env.reset()
     return env, timestep
+
 
 def physics_process(shared_queue, lock):
     # Physics process
     env, timestep = create_env()
 
     # nn
-    policy = Policy(CONFIG['observation_size'], CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
+    policy = DQN_Policy(CONFIG['observation_size'], CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
 
     # optimizer
     optimizer = optim.Adam(policy.parameters(), lr=CONFIG['lr'], weight_decay=CONFIG['weight_decay'])
 
     rl = RL(env, policy, optimizer)
+
+    action_table = ActionTable(8, 2)
 
     render_image = env.physics.render(camera_id=1, width=640, height=480)
  
@@ -89,18 +94,22 @@ def physics_process(shared_queue, lock):
             if shared_queue.full():
                 
                 obs = shared_queue.get()
-                # print(result['predictions'][0][0]['keypoints'])
-
-                # action = np.random.uniform(-0.3, 0.3, size=action_size)
 
                 obs = torch.tensor(obs, dtype=torch.float32).to(CONFIG['device'])
-                action, log_prob = policy.act(obs)
-                _action = action.cpu().detach().numpy()
+                _action, log_prob = policy.act(obs)
+
+                # search table for human join index
+                _action = action_table[_action]
+
+                obs = obs.cpu().detach().numpy()
+                left_value = obs[_action[0]]
+                right_value = obs[_action[1]]
 
                 action = np.zeros(11, np.float32)
-                action[0:2] = _action
+                action[0] = left_value
+                action[1] = right_value
 
-                timestep = env.step(action)
+                timestep = env._environment.step(action)
 
                 reward = timestep.reward
                 rl.get_one_data(log_prob, reward)

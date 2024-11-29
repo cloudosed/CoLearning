@@ -34,8 +34,32 @@ class Policy(nn.Module):
         
         dist = torch.distributions.multivariate_normal.MultivariateNormal(mean, scale_tril=torch.tril(torch.diag_embed(std)))
         action = dist.sample()
+
         log_prob = dist.log_prob(action).sum(dim=-1)
         return action, log_prob
+
+class DQN_Policy(nn.Module):
+    def __init__(self, s_size, h_size, a_size):
+        super(DQN_Policy, self).__init__()
+        self.fc1 = nn.Linear(s_size, h_size)
+        self.norm = nn.LayerNorm(h_size)
+        self.fc2 = nn.Linear(h_size, a_size)
+
+    def forward(self, x):
+        if len(x.shape) == 1:
+            x = x.unsqueeze(0)  # Add batch dimension if missing
+        x = F.relu(self.fc1(x))
+        x = self.norm(x)
+        x = self.fc2(x)
+        x = F.softmax(x, dim=-1)
+        return x
+
+    def act(self, state):
+        probs = self.forward(state)
+        m = torch.distributions.Categorical(probs.squeeze(0))  # Remove batch dimension for sampling
+        action = m.sample()
+
+        return action.item(), m.log_prob(action)
     
 
 class RL():

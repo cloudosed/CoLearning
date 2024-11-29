@@ -15,8 +15,8 @@ from config import CONFIG
 def get_skeleton_data(shared_queue, lock, fps = 30, use_delta = False):
         # 使用模型别名创建推理器
     inferencer = MMPoseInferencer(CONFIG['skeleton_model'], device=CONFIG['device'])
-    # result_generator = inferencer('webcam', show=True, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
-    result_generator = inferencer(CONFIG['inference_data'], show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
+    # result_generator = inferencer(CONFIG['inference_data'], show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
+    result_generator = inferencer('webcam', show=False, num_instances = 1, draw_heatmap = True, draw_bbox=True,  return_vis=True)
 
     interval = 1 / fps
 
@@ -67,6 +67,8 @@ def get_skeleton_data(shared_queue, lock, fps = 30, use_delta = False):
         time.sleep(time_to_wait)
 
 def process_skeleton_data(result):
+    if result is None or result['predictions'] is None or len(result['predictions']) == 0:
+        return None
     keypoints = result['predictions'][0][0]['keypoints']
     scores = result['predictions'][0][0]['keypoint_scores']
     keypoints = np.array(keypoints)
@@ -79,7 +81,13 @@ def process_skeleton_data(result):
     obs = []
     for i in index:
         if scores[i] > 0.1:
-            obs.append(math.atan(keypoints[i][1] / keypoints[i][0]))
+            if i <= 10:
+                obs.append((math.atan(keypoints[i][1] / keypoints[i][0]) + math.pi / 2) / math.pi)
+            elif i == 14 or i == 16:
+                obs.append(min(max((math.atan(keypoints[i][1] / keypoints[i][0]) + math.pi / 2) / math.pi * 2, 0), 1))
+            else:
+                obs.append(min(max((math.atan(keypoints[i][0] / keypoints[i][1]) + math.pi / 2) / math.pi * 2 - 1, 0), 1))
+
         else:
             obs.append(0)
     obs = np.array(obs)

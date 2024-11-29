@@ -11,8 +11,8 @@
     "terminal_height": -10,
 
     "h_size":16,
-    "action_size": 2,
-    "batch_size":50,
+    "action_size": 1,
+    "batch_size":32,
     "gamma": 0.99,
     "lr": 1e-4,
     "weight_decay": 1e-4

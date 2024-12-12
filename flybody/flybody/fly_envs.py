@@ -58,7 +58,8 @@ class ColearnTrajectory(HDF5FlightTrajectoryLoader):
         dist = 5
         seg = self._com_qvel[0].shape[0]
         z = .5
-        angle = -90
+        angle = -15
+        angle = math.radians(angle)
         traj = []
         vel = []
         quat = get_quat(angle, [0, 1, 0])

@@ -36,7 +36,7 @@ from flybody.agents.utils_tf import TestPolicyWrapper
 from skeleton import get_skeleton_data
 
 # RL
-from RL import Policy, RL, DQN_Policy
+from RL import Policy, RL, Easy_Policy
 from actionTable import ActionTable
 
 # tf for flight_policy
@@ -76,14 +76,19 @@ def physics_process(shared_queue, lock):
     env, timestep = create_env()
 
     # nn
-    policy = DQN_Policy(CONFIG['observation_size'], CONFIG['h_size'], CONFIG['action_size']).to(CONFIG['device'])
+    policy = Easy_Policy(CONFIG['observation_size'], CONFIG['action_size']).to(CONFIG['device'])
 
-    # optimizer
-    optimizer = optim.Adam(policy.parameters(), lr=CONFIG['lr'], weight_decay=CONFIG['weight_decay'])
+    # optimizer only for policy.fc_mean.weight and policy.fc_log_std.weight
+    optimizer = optim.Adam(
+        [
+            {'params': policy.fc_mean.weight},
+            {'params': policy.fc_log_std.weight}
+        ], 
+        lr=CONFIG['lr'], 
+        weight_decay=CONFIG['weight_decay']
+    )
 
     rl = RL(env, policy, optimizer)
-
-    action_table = ActionTable(8, 2)
 
     render_image = env.physics.render(camera_id=1, width=640, height=480)
  
@@ -96,20 +101,14 @@ def physics_process(shared_queue, lock):
                 obs = shared_queue.get()
 
                 obs = torch.tensor(obs, dtype=torch.float32).to(CONFIG['device'])
-                _action, log_prob = policy.act(obs)
+                action, log_prob = policy.act(obs)
+                action = action.cpu().numpy()
 
-                # search table for human join index
-                _action = action_table[_action]
+                full_action = np.zeros(11, np.float32)
+                full_action[0] = action[0]
+                full_action[1] = action[1]
 
-                obs = obs.cpu().detach().numpy()
-                left_value = obs[_action[0]]
-                right_value = obs[_action[1]]
-
-                action = np.zeros(11, np.float32)
-                action[0] = left_value
-                action[1] = right_value
-
-                timestep = env._environment.step(action)
+                timestep = env._environment.step(full_action)
 
                 reward = timestep.reward
                 rl.get_one_data(log_prob, reward)

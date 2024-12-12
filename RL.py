@@ -60,6 +60,32 @@ class DQN_Policy(nn.Module):
         action = m.sample()
 
         return action.item(), m.log_prob(action)
+
+class Easy_Policy(nn.Module):
+    def __init__(self, s_size, a_size):
+        super(Easy_Policy, self).__init__()
+        self.fc_mean = nn.Linear(s_size, a_size)
+        self.fc_log_std = nn.Linear(s_size, a_size)
+
+        # Initialize biases to zero
+        self.fc_mean.bias = nn.Parameter(torch.zeros(a_size))
+        self.fc_log_std.bias = nn.Parameter(torch.zeros(a_size))
+
+    def forward(self, x):
+        mean = self.fc_mean(x)
+        log_std = self.fc_log_std(x)
+        log_std = torch.clamp(log_std, min=-10, max=10)  # 对log_std进行裁剪
+        std = torch.exp(log_std)
+        return mean, std
+
+    def act(self, state):
+        mean, std = self.forward(state)
+        
+        dist = torch.distributions.multivariate_normal.MultivariateNormal(mean, scale_tril=torch.tril(torch.diag_embed(std)))
+        action = dist.sample()
+
+        log_prob = dist.log_prob(action).sum(dim=-1)
+        return action, log_prob
     
 
 class RL():

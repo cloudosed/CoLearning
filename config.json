@@ -4,14 +4,14 @@
     "skeleton_model": "rtmo-t_8xb32-600e_body7-416x416",
     "inference_data": "temp_test.mp4",
 
-    "observation_size": 8,
+    "observation_size": 16,
 
     "weight_factor": 1,
     "floor_contacts": false,
     "terminal_height": -10,
 
     "h_size":16,
-    "action_size": 1,
+    "action_size": 2,
     "batch_size":32,
     "gamma": 0.99,
     "lr": 1e-4,
